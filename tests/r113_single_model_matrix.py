@@ -243,6 +243,12 @@ def main():
         result["headroom_percent"]=round((512-result["cgroup_peak_mib"])/512*100,2)
         end_events=events()
         result["oom_kill_delta"]=end_events.get("oom_kill",0)-begin_events.get("oom_kill",0)
+        result["argostranslate_batch_size"]=int(os.environ.get("ARGOS_BATCH_SIZE","8"))
+        result["argostranslate_beam_size"]=int(os.environ.get("ARGOS_BEAM_SIZE","4"))
+        if result["oom_kill_delta"]>0:
+            result["status"]="FAIL_OOM_KILL"
+        elif result["headroom_percent"]<15:
+            result["status"]="HOLD_LOW_MEMORY_HEADROOM"
         result["elapsed_seconds"]=round(time.monotonic()-START,3)
         (OUT/"summary.json").write_text(
             json.dumps(result,indent=2,ensure_ascii=False,sort_keys=True)+"\n",
