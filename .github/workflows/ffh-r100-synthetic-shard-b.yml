@@ -1,8 +1,8 @@
 name: FFH R100 worker B isolated synthetic translation benchmark
 on:
   push:
-    branches: [ffh-r100-isolated-two-account-test-20261016]
-    paths: [.github/workflows/ffh-r100-synthetic-shard-a.yml]
+    branches: [ffh-r100-worker-b-synthetic-20261016]
+    paths: [.github/workflows/ffh-r100-synthetic-shard-b.yml]
 permissions:
   contents: read
 jobs:
