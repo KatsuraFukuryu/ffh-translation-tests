@@ -1,0 +1,55 @@
+name: FFH R117b Korean guarded stress safe-memory profiles
+on:
+  push:
+    branches: [ffh-r117b-korean-low-memory-20261016]
+    paths: [.github/workflows/ffh-r117b-korean-memory.yml]
+permissions:
+  contents: read
+jobs:
+  korean-mem-profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - profile: batch1-beam4
+            batch: 1
+            beam: 4
+          - profile: batch4-beam2
+            batch: 4
+            beam: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Syntax-check local offline service
+        run: python -m py_compile app.py protected_translation.py tests/r117_guarded_load_boundary.py
+      - name: Build pinned attributed Argos source
+        run: |
+          git clone --depth 1 --branch v1.11.0 https://github.com/argosopentech/argos-translate r109-upstream
+          test "$(git -C r109-upstream rev-parse HEAD)" = "63b84ecb46c740c7a7c066d58636434d3e893ebf"
+          python tools/r109_prepare_lightweight_source.py --upstream r109-upstream --output r109-light
+      - name: Build Korean with lower memory inference
+        run: |
+          docker build --build-arg FFH_TEST_TARGET=ko \
+            --build-arg FFH_TEST_BATCH=${{ matrix.batch }} \
+            --build-arg FFH_TEST_BEAM=${{ matrix.beam }} \
+            --tag ffh-ko-r117b-${{ matrix.profile }} --file tests/r117.Dockerfile .
+      - name: Re-test with 512MiB cap including parallel HTTP, restarts and long input
+        run: |
+          mkdir -p r117b-${{ matrix.profile }}
+          docker run --rm --network none --memory 512m --memory-swap 512m --cpus 1 \
+            --pids-limit 128 \
+            --volume "$PWD/r117b-${{ matrix.profile }}:/srv/ffh/r117-output" \
+            ffh-ko-r117b-${{ matrix.profile }}
+      - name: Preserve failed or passed test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r117b-ko-${{ matrix.profile }}
+          path: r117b-${{ matrix.profile }}/
+          if-no-files-found: warn
+          retention-days: 3
