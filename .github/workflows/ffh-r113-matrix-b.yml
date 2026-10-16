@@ -4,6 +4,7 @@ on:
     branches: [ffh-r113-model-matrix-b-20261016]
     paths:
       - .github/workflows/ffh-r113-matrix-b.yml
+      - tests/r113_single_model_matrix.py
 permissions:
   contents: read
 jobs:
