@@ -1,0 +1,57 @@
+name: FFH R115 Tagalog memory-headroom recovery isolated profiles
+on:
+  push:
+    branches: [ffh-r115-tagalog-memory-profiles-20261016]
+    paths:
+      - .github/workflows/ffh-r115-tagalog-profiles.yml
+permissions:
+  contents: read
+jobs:
+  tagalog-memory-profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - profile: batch1-beam4
+            batch: 1
+            beam: 4
+          - profile: batch4-beam2
+            batch: 4
+            beam: 2
+    steps:
+      - name: Checkout isolated experimental branch
+        uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify memory profile test syntax
+        run: python -m py_compile tests/r113_single_model_matrix.py
+      - name: Prepare exact pinned upstream lightweight Argos package
+        run: |
+          git clone --depth 1 --branch v1.11.0 https://github.com/argosopentech/argos-translate r109-upstream
+          test "$(git -C r109-upstream rev-parse HEAD)" = "63b84ecb46c740c7a7c066d58636434d3e893ebf"
+          python tools/r109_prepare_lightweight_source.py --upstream r109-upstream --output r109-light
+      - name: Build disposable Tagalog model with tested profile
+        run: |
+          docker build --build-arg FFH_TEST_TARGET=tl \
+            --build-arg FFH_TEST_BATCH=${{ matrix.batch }} \
+            --build-arg FFH_TEST_BEAM=${{ matrix.beam }} \
+            --tag ffh-r115-${{ matrix.profile }} --file tests/r115.Dockerfile .
+      - name: Evaluate one model under strict 512MiB cgroup
+        run: |
+          mkdir -p r115-${{ matrix.profile }}
+          docker run --rm --network none --memory 512m --memory-swap 512m --cpus 1 \
+            --volume "$PWD/r115-${{ matrix.profile }}:/srv/ffh/r113-output" \
+            ffh-r115-${{ matrix.profile }}
+      - name: Preserve non-private synthetic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r115-tl-${{ matrix.profile }}
+          path: r115-${{ matrix.profile }}/
+          if-no-files-found: warn
+          retention-days: 3
