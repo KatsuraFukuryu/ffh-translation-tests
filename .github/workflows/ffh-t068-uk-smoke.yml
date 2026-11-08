@@ -1,0 +1,46 @@
+name: FFH T068 direct Ukrainian model smoke test
+on:
+  push:
+    branches: [t068-uk-direct-model-smoke]
+    paths: ['.github/workflows/ffh-t068-uk-smoke.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Argos
+        run: python -m pip install --disable-pip-version-check argostranslate==1.11.0
+      - name: Install direct en-uk model and measure translation
+        env:
+          ARGOS_DEVICE_TYPE: cpu
+        run: |
+          python - <<'PY'
+          import time, json, resource, importlib.metadata
+          import argostranslate.package as p
+          import argostranslate.translate as t
+          started=time.perf_counter()
+          p.update_package_index()
+          matches=[m for m in p.get_available_packages() if m.from_code=='en' and m.to_code=='uk']
+          if len(matches)!=1: raise RuntimeError(f'Expected exactly one direct en-uk model, found {len(matches)}')
+          model=matches[0]
+          print('model:', str(model), 'version:', getattr(model,'package_version','unknown'))
+          model_path=model.download()
+          p.install_from_path(model_path)
+          print('model_install_seconds:', round(time.perf_counter()-started,3))
+          examples=['Fermented cabbage','Keep the jar clean.','A temperature of 20 °C and 3% salt.']
+          begin=time.perf_counter()
+          output=[t.translate(s,'en','uk') for s in examples]
+          duration=time.perf_counter()-begin
+          for source,target in zip(examples,output):
+              if not target.strip() or target.strip()==source: raise RuntimeError('Empty or unchanged output')
+              print(json.dumps({'source':source,'translation':target},ensure_ascii=False))
+          print('translation_seconds:',round(duration,3))
+          print('max_rss_kib:',resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+          print('argos_version:',importlib.metadata.version('argostranslate'))
+          PY
