@@ -1,0 +1,31 @@
+name: FFH T068 isolated EN-UK model execution test
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  model-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install and run isolated model test on generic public sentences
+        run: |
+          python -m pip install --disable-pip-version-check argostranslate==1.11.0
+          python - <<'PY'
+          import time, resource, hashlib, json
+          import argostranslate.package, argostranslate.translate
+          start=time.monotonic()
+          argostranslate.package.update_package_index()
+          p=next(p for p in argostranslate.package.get_available_packages() if p.from_code=='en' and p.to_code=='uk')
+          t=time.monotonic()
+          argostranslate.package.install_from_path(p.download())
+          installed=time.monotonic()
+          samples=['The garden has three trees.','Please close the window.','Today is Monday.']
+          translations=[argostranslate.translate.translate(s,'en','uk') for s in samples]
+          end=time.monotonic()
+          assert all(x and x!=s for x,s in zip(translations,samples))
+          print(json.dumps({'model':str(p),'model_download_install_seconds':round(installed-t,3),'generation_seconds':round(end-installed,3),'total_seconds':round(end-start,3),'sample_count':len(samples),'samples_sha256':[hashlib.sha256(s.encode()).hexdigest() for s in samples],'outputs':translations,'max_rss_kb':resource.getrusage(resource.RUSAGE_SELF).ru_maxrss},ensure_ascii=False))
+          PY
