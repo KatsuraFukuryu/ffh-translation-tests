@@ -1,5 +1,8 @@
 name: FFH T068 isolated EN-UK model execution test
 on:
+  push:
+    paths:
+      - '.github/workflows/ffh-t068-en-uk-isolated-test.yml'
   workflow_dispatch:
 permissions:
   contents: read
