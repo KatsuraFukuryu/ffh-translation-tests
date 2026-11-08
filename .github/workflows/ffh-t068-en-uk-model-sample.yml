@@ -1,0 +1,38 @@
+name: FFH T068 EN-UK model install and public sample
+on:
+  push:
+    paths:
+      - '.github/workflows/ffh-t068-en-uk-model-sample.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Argos library and direct EN-UK model; test harmless public sentence
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check argostranslate==1.11.0
+          python - <<'PY'
+          import time, json, importlib.metadata, resource
+          import argostranslate.package, argostranslate.translate
+          t0=time.perf_counter()
+          argostranslate.package.update_package_index()
+          candidates=[p for p in argostranslate.package.get_available_packages() if p.from_code=='en' and p.to_code=='uk']
+          assert candidates, 'direct en->uk model missing'
+          t1=time.perf_counter()
+          path=candidates[0].download()
+          t2=time.perf_counter()
+          argostranslate.package.install_from_path(path)
+          t3=time.perf_counter()
+          sentence='The garden has three red flowers and two green leaves.'
+          result=argostranslate.translate.translate(sentence,'en','uk')
+          t4=time.perf_counter()
+          assert result.strip() and result!=sentence
+          print(json.dumps({'argos_version':importlib.metadata.version('argostranslate'),'model':str(candidates[0]),'index_seconds':round(t1-t0,3),'download_seconds':round(t2-t1,3),'install_seconds':round(t3-t2,3),'translation_seconds':round(t4-t3,3),'sample_input':sentence,'sample_output':result,'max_rss_kib':resource.getrusage(resource.RUSAGE_SELF).ru_maxrss},ensure_ascii=False))
+          PY
