@@ -1,0 +1,38 @@
+name: FFH T068 EN-UK synthetic model smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install only Argos runtime
+        run: python -m pip install --disable-pip-version-check argostranslate==1.11.0
+      - name: Install direct EN-UK model and test synthetic text
+        run: |
+          python - <<'PY'
+          import time, resource, hashlib
+          import argostranslate.package, argostranslate.translate
+          t=time.monotonic()
+          argostranslate.package.update_package_index()
+          p=next((p for p in argostranslate.package.get_available_packages() if p.from_code=='en' and p.to_code=='uk'),None)
+          assert p, 'direct en->uk model unavailable'
+          print('index_seconds',round(time.monotonic()-t,3))
+          t=time.monotonic()
+          argostranslate.package.install_from_path(p.download())
+          print('download_install_seconds',round(time.monotonic()-t,3))
+          sample='The garden has three red flowers and two blue flowers.'
+          t=time.monotonic()
+          output=argostranslate.translate.translate(sample,'en','uk')
+          print('generation_seconds',round(time.monotonic()-t,3))
+          print('input_sha256',hashlib.sha256(sample.encode()).hexdigest())
+          print('output_sha256',hashlib.sha256(output.encode()).hexdigest())
+          print('output_chars',len(output),'different_from_input',output!=sample)
+          print('maxrss_kb',resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+          assert output and output!=sample
+          PY
