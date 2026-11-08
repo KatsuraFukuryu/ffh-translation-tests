@@ -1,0 +1,33 @@
+name: FFH T067 Argos installation probe
+on:
+  push:
+    paths:
+      - '.github/workflows/ffh-t067-argos-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Argos Translate
+        run: python -m pip install --disable-pip-version-check argostranslate
+      - name: Verify direct English to Ukrainian package availability
+        run: |
+          python - <<'PY'
+          import importlib.metadata
+          import argostranslate.package
+          print("argos_version:", importlib.metadata.version("argostranslate"))
+          argostranslate.package.update_package_index()
+          pairs=[(p.from_code,p.to_code,str(p)) for p in argostranslate.package.get_available_packages()]
+          direct=[p for p in pairs if p[0]=="en" and p[1]=="uk"]
+          print("direct_en_uk_model_available:", bool(direct))
+          print("matching_packages:", direct)
+          if not direct:
+              raise SystemExit("No direct English to Ukrainian Argos model in index")
+          PY
